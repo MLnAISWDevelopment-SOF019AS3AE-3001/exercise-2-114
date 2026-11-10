@@ -27,7 +27,7 @@ spec:
     type: Git
     git:
       uri: https://github.com/MLnAISWDevelopment-SOF019AS3AE-3001/exercise-2-114.git
-      ref: main
+      ref: exercise-2-114
   strategy:
     type: Docker
     dockerStrategy:
@@ -55,7 +55,7 @@ spec:
     type: Git
     git:
       uri: https://github.com/MLnAISWDevelopment-SOF019AS3AE-3001/exercise-2-114.git
-      ref: main
+      ref: exercise-2-114
   strategy:
     type: Docker
     dockerStrategy:
