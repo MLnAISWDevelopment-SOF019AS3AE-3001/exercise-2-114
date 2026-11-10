@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: exercise-2-web
+  labels:
+    app: exercise-2-web
+  annotations:
+    image.openshift.io/triggers: '[{"from":{"kind":"ImageStreamTag","name":"exercise-2-web:latest"},"fieldPath":"spec.template.spec.containers[?(@.name==\"web\")].image"}]'
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: exercise-2-web
+  template:
+    metadata:
+      labels:
+        app: exercise-2-web
+    spec:
+      containers:
+        - name: web
+          image: exercise-2-web:latest
+          ports:
+            - containerPort: 3000
+          env:
+            - name: BACKEND_URL
+              value: http://exercise-2-api:8000
+            - name: COURSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: exercise-2-access
+                  key: COURSE_PASSWORD
+          readinessProbe:
+            httpGet:
+              path: /login
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 1Gi

@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: exercise-2-api
+  labels:
+    app: exercise-2-api
+  annotations:
+    image.openshift.io/triggers: '[{"from":{"kind":"ImageStreamTag","name":"exercise-2-api:latest"},"fieldPath":"spec.template.spec.containers[?(@.name==\"api\")].image"}]'
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: exercise-2-api
+  template:
+    metadata:
+      labels:
+        app: exercise-2-api
+    spec:
+      containers:
+        - name: api
+          image: exercise-2-api:latest
+          ports:
+            - containerPort: 8000
+          env:
+            - name: LLM_PROVIDER
+              value: aitta
+            - name: DEMO_LLM_MODEL
+              value: google/gemma-4-31b-it
+            - name: AITTA_EMBEDDING_MODEL
+              value: lightonai/modernbert-embed-large
+            - name: AITTA_BASE_URL
+              value: https://aitta-api.csc.fi/openai/v1
+            - name: AITTA_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: exercise-2-aitta
+                  key: AITTA_API_KEY
+            - name: COURSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: exercise-2-access
+                  key: COURSE_PASSWORD
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: 200m
+              memory: 1Gi
+            limits:
+              memory: 3Gi

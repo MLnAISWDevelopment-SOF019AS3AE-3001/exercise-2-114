@@ -1,0 +1,13 @@
+name: Exercise 2
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check the repository shape
+        run: python3 scripts/check_exercise_2_repo.py

@@ -1,0 +1,21 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: exercise-2-web
+  labels:
+    app: exercise-2-web
+  annotations:
+    # The first question can wait while the cloud vendor AI API service loads a cold model.
+    haproxy.router.openshift.io/timeout: 15m
+    haproxy.router.openshift.io/response-buffering: "off"
+    haproxy.router.openshift.io/disable-cookies: "true"
+spec:
+  to:
+    kind: Service
+    name: exercise-2-web
+    weight: 100
+  port:
+    targetPort: 3000
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

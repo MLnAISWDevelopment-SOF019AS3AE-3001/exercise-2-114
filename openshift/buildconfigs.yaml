@@ -1,0 +1,72 @@
+# Builds run inside the student's own Rahti project.
+# Replace exercise-2-ID with the repository name exercise-2-<id>.
+# A private repository needs the steps on the Haaga-Helia page
+# rahti/julkaisu_yksityisesta_repositoriosta.
+# Until that remote build is connected, upload this directory with:
+#   oc start-build exercise-2-api --from-dir=. --follow
+#   oc start-build exercise-2-web --from-dir=. --follow
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: exercise-2-api
+---
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: exercise-2-web
+---
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: exercise-2-api
+  labels:
+    app: exercise-2-api
+spec:
+  runPolicy: SerialLatestOnly
+  source:
+    type: Git
+    git:
+      uri: https://github.com/MLnAISWDevelopment-SOF019AS3AE-3001/exercise-2-ID.git
+      ref: main
+  strategy:
+    type: Docker
+    dockerStrategy:
+      dockerfilePath: api/Dockerfile
+  output:
+    to:
+      kind: ImageStreamTag
+      name: exercise-2-api:latest
+  resources:
+    requests:
+      cpu: 500m
+      memory: 2Gi
+    limits:
+      memory: 4Gi
+---
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: exercise-2-web
+  labels:
+    app: exercise-2-web
+spec:
+  runPolicy: SerialLatestOnly
+  source:
+    type: Git
+    git:
+      uri: https://github.com/MLnAISWDevelopment-SOF019AS3AE-3001/exercise-2-ID.git
+      ref: main
+  strategy:
+    type: Docker
+    dockerStrategy:
+      dockerfilePath: Dockerfile
+  output:
+    to:
+      kind: ImageStreamTag
+      name: exercise-2-web:latest
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      memory: 3Gi

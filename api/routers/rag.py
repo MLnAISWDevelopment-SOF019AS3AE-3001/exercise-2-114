@@ -1,0 +1,248 @@
+"""Conversational RAG over the shipped wine-quality notes.
+
+The prompt constant and the two model ids are the graded surface of Exercise 2.
+The baseline prompt does not yet contain the paragraph students add later.
+"""
+
+from __future__ import annotations
+
+import hmac
+import logging
+import os
+import re
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, Header, HTTPException
+from pydantic import BaseModel, Field
+
+logger = logging.getLogger(__name__)
+
+CHAT_MODEL = "google/gemma-4-31b-it"
+EMBEDDING_MODEL = "lightonai/modernbert-embed-large"
+AITTA_BASE_URL = "https://aitta-api.csc.fi/openai/v1"
+COLLECTION_ID = "wine-notes"
+
+# Baseline prompt. Students add the required paragraph from the exercise page
+# after they have saved a baseline answer. Do not put that paragraph here.
+CUSTOM_RAG_PROMPT = """You are a wine-quality study assistant.
+
+You answer questions about the wine-quality notes used with Exercise 1.
+The notes explain laboratory measurements and the sensory quality score.
+
+Guidelines:
+- Use only facts found in Context. Do not use prior knowledge.
+- If Context is empty or irrelevant, say that the wine notes do not contain the answer.
+- Cite a source as [document_name, page X] when you use a note.
+- Do not compute or guess a quality score. Say that this assistant cannot estimate one.
+
+Context:
+{context}
+
+Question: {query}"""
+
+CORPUS_DIR = Path(__file__).resolve().parent.parent / "corpus"
+HEADING = re.compile(r"^##\s+(.+?)\s*$", re.MULTILINE)
+
+def require_course_password(
+    x_course_password: str | None = Header(default=None),
+) -> None:
+    """Reject a chat call that did not come through the course password gate."""
+    expected = os.getenv("COURSE_PASSWORD", "").strip()
+    if not expected:
+        raise HTTPException(status_code=503, detail="Course password is not configured.")
+    given = x_course_password or ""
+    if not hmac.compare_digest(given.encode(), expected.encode()):
+        raise HTTPException(status_code=401, detail="Course password required.")
+
+
+router = APIRouter(dependencies=[Depends(require_course_password)])
+
+_workflow = None
+_index_error: str | None = None
+_section_count = 0
+
+
+class AskRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=2000)
+
+
+class Source(BaseModel):
+    document_name: str
+    page_number: int | None = None
+    relevance_score: float | None = None
+
+
+class AskResponse(BaseModel):
+    answer: str
+    sources: list[Source]
+
+
+class StatusResponse(BaseModel):
+    collection_id: str
+    ready: bool
+    section_count: int
+    error: str | None = None
+
+
+def load_corpus_sections(corpus_dir: Path | None = None) -> list[dict]:
+    """Split each Markdown file into sections at level-2 headings.
+
+    Page numbers start at 1 inside each file. The document name is the file
+    stem, which is what a citation such as [measurements, page 4] refers to.
+    """
+    directory = corpus_dir or CORPUS_DIR
+    sections: list[dict] = []
+    for path in sorted(directory.glob("*.md")):
+        text = path.read_text(encoding="utf-8")
+        matches = list(HEADING.finditer(text))
+        if not matches:
+            body = text.strip()
+            if body:
+                sections.append(
+                    {
+                        "document_name": path.stem,
+                        "page_number": 1,
+                        "heading": path.stem,
+                        "text": body,
+                    }
+                )
+            continue
+        for index, match in enumerate(matches, start=1):
+            start = match.end()
+            end = matches[index].start() if index < len(matches) else len(text)
+            body = text[start:end].strip()
+            if not body:
+                continue
+            sections.append(
+                {
+                    "document_name": path.stem,
+                    "page_number": index,
+                    "heading": match.group(1).strip(),
+                    "text": body,
+                }
+            )
+    return sections
+
+
+def build_workflow(config: dict):
+    """Build the in-memory RAG workflow with the pinned models."""
+    from langchain_core.documents import Document
+
+    from gaik.software_components.RAG.answer_generator import AnswerGenerator
+    from gaik.software_components.RAG.embedder import Embedder
+    from gaik.software_components.RAG.vector_store import VectorStore
+
+    pinned = dict(config)
+    pinned["model"] = CHAT_MODEL
+    pinned["embedding_model"] = EMBEDDING_MODEL
+    if not pinned.get("base_url"):
+        pinned["base_url"] = AITTA_BASE_URL
+
+    embedder = Embedder(config=pinned, model=EMBEDDING_MODEL)
+    store = VectorStore(persist=False, collection_name=COLLECTION_ID)
+    answer = AnswerGenerator(
+        config=pinned,
+        model=CHAT_MODEL,
+        citations=True,
+        stream=False,
+        prompt=CUSTOM_RAG_PROMPT,
+        conversation_history=True,
+        last_n=3,
+    )
+
+    class _Workflow:
+        def __init__(self) -> None:
+            self.embedder = embedder
+            self.store = store
+            self.answer = answer
+
+        def add_sections(self, sections: list[dict]) -> int:
+            documents = [
+                Document(
+                    page_content=section["text"],
+                    metadata={
+                        "document_name": section["document_name"],
+                        "page_number": section["page_number"],
+                        "heading": section["heading"],
+                    },
+                )
+                for section in sections
+            ]
+            embeddings, docs = self.embedder.embed(documents)
+            self.store.add(docs, embeddings)
+            return len(docs)
+
+        def ask(self, question: str) -> tuple[str, list[Source]]:
+            query_embedding = self.embedder.embed_query(question)
+            found = self.store.search(query_embedding, top_k=4)
+            documents = [doc for doc, _score in found]
+            scores = [score for _doc, score in found]
+            if not documents:
+                return (
+                    "The wine notes do not contain the answer.",
+                    [],
+                )
+            raw = self.answer.generate(question, documents, stream=False)
+            answer = raw if isinstance(raw, str) else "".join(raw)
+            sources = []
+            for doc, score in zip(documents, scores):
+                sources.append(
+                    Source(
+                        document_name=str(doc.metadata.get("document_name", "unknown")),
+                        page_number=doc.metadata.get("page_number"),
+                        relevance_score=score,
+                    )
+                )
+            return answer, sources
+
+    return _Workflow()
+
+
+def index_corpus() -> None:
+    """Embed the shipped notes. A failure is stored and the process still serves /health."""
+    global _workflow, _index_error, _section_count
+    _workflow = None
+    _index_error = None
+    _section_count = 0
+    try:
+        from utils.config import get_api_config
+    except ImportError:
+        from api.utils.config import get_api_config
+
+    sections = load_corpus_sections()
+    if not sections:
+        _index_error = "The wine notes corpus is empty."
+        logger.error(_index_error)
+        return
+    try:
+        config = get_api_config()
+        workflow = build_workflow(config)
+        _section_count = workflow.add_sections(sections)
+        _workflow = workflow
+        logger.info("Indexed %s wine-note sections", _section_count)
+    except Exception as exc:
+        _index_error = str(exc)
+        logger.exception("Wine-note index failed")
+
+
+@router.get("/status", response_model=StatusResponse)
+async def status() -> StatusResponse:
+    return StatusResponse(
+        collection_id=COLLECTION_ID,
+        ready=_workflow is not None and _index_error is None,
+        section_count=_section_count,
+        error=_index_error,
+    )
+
+
+@router.post("/query", response_model=AskResponse)
+async def query(body: AskRequest) -> AskResponse:
+    if _workflow is None:
+        detail = _index_error or "The wine notes are not indexed yet."
+        raise HTTPException(status_code=503, detail=detail)
+    try:
+        answer, sources = _workflow.ask(body.question.strip())
+    except Exception as exc:
+        logger.exception("Wine-note query failed")
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return AskResponse(answer=answer, sources=sources)

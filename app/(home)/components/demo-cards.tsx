@@ -1,0 +1,816 @@
+"use client";
+
+import { Badge } from "@/components/ui/badge";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { prompts, skills } from "@/lib/no-code/catalog";
+import { cn } from "@/lib/utils";
+import {
+  AlertTriangle,
+  AudioWaveform,
+  Bot,
+  Braces,
+  Cpu,
+  Database,
+  Download,
+  MessageSquare,
+  FileBarChart,
+  FileOutput,
+  FilePen,
+  FileStack,
+  LibraryBig,
+  NotebookPen,
+  FileSearch,
+  FileText,
+  FileUp,
+  FolderKanban,
+  Globe,
+  GraduationCap,
+  HardHat,
+  Headset,
+  House,
+  Lock,
+  type LucideIcon,
+  MessageSquareQuote,
+  Mic,
+  Scale,
+  ScanEye,
+  Search,
+  Volume2,
+  Wand2,
+  Sparkles,
+  Table2,
+  Users,
+  Video,
+} from "lucide-react";
+import { motion } from "motion/react";
+import Image from "next/image";
+import Link from "next/link";
+import { useEffect, useState } from "react";
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.08, delayChildren: 0.15 },
+  },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.4, ease: "easeOut" as const },
+  },
+};
+
+interface FeatureItem {
+  label: string;
+  icon: LucideIcon;
+}
+
+interface Demo {
+  title: string;
+  description: string;
+  href: string;
+  icon: LucideIcon;
+  featured?: boolean;
+  size?: "large" | "wide";
+  image?: string;
+  imagePosition?: string;
+  featureList?: FeatureItem[];
+  comingSoon?: boolean;
+}
+
+// Use Cases (featured demos)
+const useCaseDemos: Demo[] = [
+  {
+    title: "Incident Reporting",
+    description:
+      "Record an incident, transcribe audio, and extract structured report",
+    href: "/incident-report",
+    icon: AlertTriangle,
+    featured: true,
+    size: "large",
+    image: "/incident-report-v1.png",
+    imagePosition: "center 45%",
+    featureList: [
+      { label: "Speak or Type", icon: Mic },
+      { label: "Instant Analysis", icon: Sparkles },
+      { label: "Organized Data", icon: Database },
+      { label: "PDF Export", icon: Download },
+    ],
+  },
+  {
+    title: "Construction Diary",
+    description:
+      "Record daily construction site activities via voice or text. Extract structured data automatically.",
+    href: "/diary",
+    icon: HardHat,
+    featured: true,
+    size: "large",
+    image: "/construction-diary-v1.png",
+    imagePosition: "center 52%",
+    featureList: [
+      { label: "Voice or Text", icon: Mic },
+      { label: "Multilingual", icon: Globe },
+      { label: "Personnel Tracking", icon: Users },
+      { label: "PDF Export", icon: Download },
+    ],
+  },
+];
+
+// Software Modules (moved RAG here)
+const moduleDemos: Demo[] = [
+  {
+    title: "Audio → Structured Data",
+    description:
+      "Transcribe audio files and automatically extract structured data",
+    href: "/audio-structured",
+    icon: AudioWaveform,
+    featured: true,
+    size: "large",
+    featureList: [
+      { label: "Upload Audio", icon: FileUp },
+      { label: "Auto Transcribe", icon: Mic },
+      { label: "Extract Data", icon: Sparkles },
+      { label: "PDF Export", icon: Download },
+    ],
+  },
+  {
+    title: "Document → Structured Data",
+    description:
+      "Parse PDF, Word documents, and images to automatically extract structured data",
+    href: "/document-structured",
+    icon: FileOutput,
+    featured: true,
+    size: "large",
+    featureList: [
+      { label: "Upload Docs", icon: FileUp },
+      { label: "Auto Parse", icon: FileText },
+      { label: "Extract Data", icon: Sparkles },
+      { label: "PDF Export", icon: Download },
+    ],
+  },
+  {
+    title: "RAG Builder",
+    description:
+      "Index PDF documents and ask questions with AI-powered citations",
+    href: "/rag",
+    icon: Bot,
+    featured: true,
+    size: "wide",
+    image: "/rag-builder-v1.png",
+    imagePosition: "center 50%",
+    featureList: [
+      { label: "Upload PDFs", icon: FileUp },
+      { label: "AI Search", icon: Search },
+      { label: "Cited Answers", icon: MessageSquareQuote },
+      { label: "Source Tracking", icon: Database },
+    ],
+  },
+];
+
+// Building Blocks (software components)
+const buildingBlocks: Demo[] = [
+  {
+    title: "Schema Generator",
+    description:
+      "Turn extraction requirements into reusable Pydantic models and field policies",
+    href: "/schema-generator",
+    icon: Braces,
+  },
+  {
+    title: "Extractor",
+    description:
+      "Automatically find and list important details from any document",
+    href: "/extractor",
+    icon: FileSearch,
+  },
+  {
+    title: "Vision Extractor",
+    description:
+      "Extract structured data from PDFs and images in a single LLM call — multi-doc, no intermediate parse step",
+    href: "/vision-extractor",
+    icon: ScanEye,
+  },
+  {
+    title: "Parser",
+    description:
+      "Read text and layout from PDF, Word files, and images accurately",
+    href: "/parser",
+    icon: FileText,
+  },
+  {
+    title: "Classifier",
+    description: "Automatically sort your files into the right folders",
+    href: "/classifier",
+    icon: FolderKanban,
+  },
+  {
+    title: "Transcriber",
+    description: "Convert voice recordings and videos into clear, written text",
+    href: "/transcriber",
+    icon: Mic,
+  },
+  {
+    title: "Text-to-Speech",
+    description:
+      "Generate downloadable spoken audio from text in Finnish or English",
+    href: "/text-to-speech",
+    icon: Volume2,
+  },
+  {
+    title: "PostgreSQL Agent",
+    description:
+      "Ask a database questions in plain language — the agent writes and runs read-only SQL",
+    href: "/postgres-agent",
+    icon: Database,
+  },
+  {
+    title: "Tabular Agent",
+    description:
+      "Upload a CSV or Excel file and ask it questions — even messy report-style sheets",
+    href: "/tabular-agent",
+    icon: Table2,
+  },
+  {
+    title: "LLM-as-Judge",
+    description:
+      "Score extractor output, detect hallucinations, and run a multi-model judge panel",
+    href: "/llm-judge",
+    icon: Scale,
+  },
+  {
+    title: "Source Normalizer",
+    description:
+      "Convert PDFs, Word files, spreadsheets, text, recordings and images to Markdown texts that keep their file names",
+    href: "/source-normalizer",
+    icon: FileStack,
+  },
+  {
+    title: "Knowledge Curator",
+    description:
+      "Collect verified facts for a fixed set of topics from normalized sources: each fact carries an exact quote, its file and location",
+    href: "/knowledge-curator",
+    icon: LibraryBig,
+  },
+  {
+    title: "Knowledge Synthesis",
+    description:
+      "Write a reviewed, source-grounded report from the facts of the Knowledge Curator: sections, dependencies, citations and every review edit visible",
+    href: "/knowledge-synthesis",
+    icon: NotebookPen,
+  },
+  {
+    title: "Retriever",
+    description: "Search and retrieve relevant documents from vector database",
+    href: "#",
+    icon: Search,
+    comingSoon: true,
+  },
+  {
+    title: "Embedder",
+    description: "Convert text into vector embeddings for semantic search",
+    href: "#",
+    icon: Cpu,
+    comingSoon: true,
+  },
+  {
+    title: "Vector Database",
+    description: "Store and query vector embeddings efficiently",
+    href: "#",
+    icon: Database,
+    comingSoon: true,
+  },
+];
+
+// New use cases (smaller cards below featured)
+const newUseCases: Demo[] = [
+  {
+    title: "Video Transcription & Captioning",
+    description:
+      "Upload audio or video, or open the ready-made example, to generate subtitles and transcripts",
+    href: "/dental-transcription",
+    icon: Mic,
+  },
+  {
+    title: "Semantic Video Search",
+    description:
+      "Ask in plain language and jump to the right moment in indexed videos",
+    href: "/video-search",
+    icon: Video,
+  },
+  {
+    title: "Purchase Order Processing",
+    description:
+      "Upload a purchase order, BOMs, and a pricing table to calculate line-item prices and generate an order draft",
+    href: "/luvata-order",
+    icon: FileBarChart,
+  },
+  {
+    title: "Construction Report Writing",
+    description:
+      "Turn on-site voice notes and the customer's documents into a source-grounded construction report, stage by stage",
+    href: "/report-writer-v2?example=house_condition_assessment",
+    icon: House,
+  },
+  {
+    title: "Report Writer",
+    description:
+      "Generate structured reports from any mix of documents, audio, images, and spreadsheets — with agentic per-section review and reusable JSON configs",
+    href: "/report-writer",
+    icon: FileText,
+    featureList: [
+      { label: "Mixed inputs", icon: FileUp },
+      { label: "Agentic review", icon: Sparkles },
+      { label: "Section dependencies", icon: Database },
+      { label: "Config import/export", icon: Download },
+    ],
+  },
+  {
+    title: "Report Writer v2",
+    description:
+      "Write a report in stages — normalize sources, curate facts per section, synthesize and review — and inspect or edit every intermediate file in between",
+    href: "/report-writer-v2",
+    icon: FilePen,
+    featureList: [
+      { label: "Staged pipeline", icon: Sparkles },
+      { label: "Editable workspace", icon: FilePen },
+      { label: "Section dependencies", icon: Database },
+      { label: "Workspace .zip export", icon: Download },
+    ],
+  },
+];
+
+// Coming Soon items
+const comingSoonUseCases = [
+  { title: "Customer onboarding and sales assistant", icon: Headset },
+  { title: "Sales Proposal Generation", icon: FileBarChart },
+  { title: "Learning plans & recommendations", icon: GraduationCap },
+];
+
+const comingSoonModules: { title: string; icon: LucideIcon }[] = [];
+
+interface DemoCardsProps {
+  isUnlocked: boolean;
+}
+
+function LockOverlay() {
+  return (
+    <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-black/50 opacity-100 md:opacity-0 md:transition-opacity md:group-hover:opacity-100">
+      <div className="flex flex-col items-center gap-2 text-white">
+        <Lock className="h-8 w-8" />
+        <span className="text-sm font-medium">Sign in to access</span>
+      </div>
+    </div>
+  );
+}
+
+function FeaturedCard({
+  demo,
+  isUnlocked,
+}: {
+  demo: Demo;
+  isUnlocked: boolean;
+}) {
+  const isWide = demo.size === "wide";
+
+  const cardContent = (
+    <Card className="border-primary/20 bg-card hover:border-primary/40 group relative flex h-full flex-col overflow-hidden rounded-xl border transition-colors duration-200 hover:shadow-md">
+      {!isUnlocked && <LockOverlay />}
+      <CardHeader className="pb-3">
+        <div className="flex items-center gap-4">
+          <div className="bg-primary/10 flex h-12 w-12 shrink-0 items-center justify-center rounded-xl">
+            <demo.icon className="text-primary h-6 w-6" />
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <CardTitle className="text-xl">{demo.title}</CardTitle>
+              <Badge className="bg-primary/15 text-primary hover:bg-primary/15 border-none">
+                Featured
+              </Badge>
+              {!isUnlocked && (
+                <Lock className="text-muted-foreground h-4 w-4" />
+              )}
+            </div>
+            <CardDescription>{demo.description}</CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+
+      {isWide ? (
+        // Wide card layout: stacked on mobile, horizontal on tablet+
+        <CardContent className="flex flex-1 flex-col gap-4 pt-0 pb-6 sm:flex-row">
+          {demo.image && (
+            <div className="relative h-48 w-full shrink-0 overflow-hidden rounded-lg sm:h-56 sm:w-1/2">
+              <Image
+                src={demo.image}
+                alt={`${demo.title} Demo`}
+                fill
+                className="object-cover object-center"
+                style={{ objectPosition: "center 50%" }}
+              />
+            </div>
+          )}
+          {demo.featureList && (
+            <div className="grid flex-1 grid-cols-2 gap-3">
+              {demo.featureList.map((feature) => (
+                <div
+                  key={feature.label}
+                  className="bg-muted/50 flex flex-col items-center justify-center gap-2 rounded-lg p-3"
+                >
+                  <div className="bg-background flex h-9 w-9 items-center justify-center rounded-full shadow-sm">
+                    <feature.icon className="text-primary h-4 w-4" />
+                  </div>
+                  <span className="text-center text-sm font-medium">
+                    {feature.label}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      ) : (
+        // Regular large card layout: vertical
+        <>
+          {demo.image && (
+            <CardContent className="-mt-2 overflow-hidden px-4 pt-0">
+              <div className="relative h-56 overflow-hidden rounded-lg lg:h-64">
+                <Image
+                  src={demo.image}
+                  alt={`${demo.title} Demo`}
+                  fill
+                  className="object-cover object-center"
+                  style={{ objectPosition: demo.imagePosition || "center 60%" }}
+                />
+              </div>
+            </CardContent>
+          )}
+
+          {demo.featureList && (
+            <CardContent className="mt-auto flex-1 pt-2 pb-6">
+              <div className="grid h-full grid-cols-2 gap-3">
+                {demo.featureList.map((feature) => (
+                  <div
+                    key={feature.label}
+                    className="bg-muted/50 flex flex-col items-center justify-center gap-2 rounded-lg p-4"
+                  >
+                    <div className="bg-background flex h-10 w-10 items-center justify-center rounded-full shadow-sm">
+                      <feature.icon className="text-primary h-5 w-5" />
+                    </div>
+                    <span className="text-sm font-medium">{feature.label}</span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          )}
+        </>
+      )}
+    </Card>
+  );
+
+  return (
+    <Link href={isUnlocked ? demo.href : "/sign-in"} className="block h-full">
+      {cardContent}
+    </Link>
+  );
+}
+
+function BuildingBlockCard({
+  demo,
+  isUnlocked,
+}: {
+  demo: Demo;
+  isUnlocked: boolean;
+}) {
+  // Coming soon items are not clickable
+  if (demo.comingSoon) {
+    return (
+      <Card className="bg-card group relative h-full overflow-hidden rounded-xl border opacity-60">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="bg-primary/5 mb-3 flex h-10 w-10 items-center justify-center rounded-lg">
+              <demo.icon className="text-primary h-5 w-5" />
+            </div>
+            <span className="bg-muted rounded px-1.5 py-0.5 text-[10px]">
+              Soon
+            </span>
+          </div>
+          <CardTitle className="text-lg">{demo.title}</CardTitle>
+          <CardDescription>{demo.description}</CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+
+  return (
+    <Link href={isUnlocked ? demo.href : "/sign-in"} className="block h-full">
+      <Card className="bg-card hover:border-primary/40 group relative h-full overflow-hidden rounded-xl border transition-colors duration-200 hover:shadow-md">
+        {!isUnlocked && <LockOverlay />}
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="bg-primary/5 mb-3 flex h-10 w-10 items-center justify-center rounded-lg">
+              <demo.icon className="text-primary h-5 w-5" />
+            </div>
+            {!isUnlocked && <Lock className="text-muted-foreground h-4 w-4" />}
+          </div>
+          <CardTitle className="text-lg">{demo.title}</CardTitle>
+          <CardDescription>{demo.description}</CardDescription>
+        </CardHeader>
+      </Card>
+    </Link>
+  );
+}
+
+function ComingSoonItem({
+  title,
+  icon: Icon,
+}: {
+  title: string;
+  icon: LucideIcon;
+}) {
+  return (
+    <div className="text-muted-foreground/60 flex items-center gap-2 px-3 py-1.5 text-sm">
+      <Icon className="h-4 w-4" />
+      <span>{title}</span>
+      <span className="bg-muted ml-auto rounded px-1.5 py-0.5 text-[10px]">
+        Soon
+      </span>
+    </div>
+  );
+}
+
+function ComingSoonSection({
+  title,
+  items,
+}: {
+  title: string;
+  items: { title: string; icon: LucideIcon }[];
+}) {
+  return (
+    <div className="border-muted-foreground/20 rounded-lg border border-dashed p-4">
+      <h4 className="text-muted-foreground mb-2 text-sm font-medium">
+        {title}
+      </h4>
+      <div className="grid grid-cols-2 gap-1">
+        {items.map((item) => (
+          <ComingSoonItem key={item.title} {...item} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const noCodeLinks = [
+  {
+    title: "Agent skills",
+    description:
+      "Download a skill for Claude Desktop or install the plugin in a coding agent.",
+    href: "/skills",
+    count: skills.length,
+    icon: Wand2,
+  },
+  {
+    title: "Prompts",
+    description:
+      "Copy a prompt into ChatGPT or Claude to extract structured data. Nothing to install.",
+    href: "/prompts",
+    count: prompts.length,
+    icon: MessageSquare,
+  },
+];
+
+function NoCodeAssetsSection() {
+  return (
+    <motion.div variants={itemVariants} className="space-y-4">
+      <h2 className="font-serif text-2xl font-semibold md:text-3xl">
+        No-code Assets
+      </h2>
+      <div className="grid gap-4 sm:grid-cols-2">
+        {noCodeLinks.map(({ title, description, href, count, icon: Icon }) => (
+          <Link key={href} href={href} className="block h-full">
+            <Card className="bg-card hover:border-primary/40 h-full rounded-xl border transition-colors duration-200 hover:shadow-md">
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <span className="bg-primary/10 text-primary flex h-9 w-9 items-center justify-center rounded-full">
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  <span className="text-muted-foreground text-sm">
+                    {count} available
+                  </span>
+                </div>
+                <CardTitle className="text-base">{title}</CardTitle>
+                <CardDescription className="text-sm">
+                  {description}
+                </CardDescription>
+              </CardHeader>
+            </Card>
+          </Link>
+        ))}
+      </div>
+    </motion.div>
+  );
+}
+
+function DemoCardsContent({ isUnlocked }: DemoCardsProps) {
+  return (
+    <motion.section
+      id="demos"
+      initial="hidden"
+      animate="visible"
+      variants={containerVariants}
+      className="space-y-8"
+    >
+      {!isUnlocked && (
+        <motion.div
+          variants={itemVariants}
+          className="bg-muted/50 border-primary/20 flex items-center gap-3 rounded-lg border p-4"
+        >
+          <Lock className="text-primary h-5 w-5 shrink-0" />
+          <p className="text-muted-foreground text-sm">
+            <Link href="/sign-in" className="text-primary hover:underline">
+              Sign in
+            </Link>{" "}
+            to access the interactive demos. Don&apos;t have an account?{" "}
+            <Link href="/sign-up" className="text-primary hover:underline">
+              Sign up
+            </Link>
+            .
+          </p>
+        </motion.div>
+      )}
+
+      {/* Use Cases */}
+      <motion.div
+        variants={itemVariants}
+        className="space-y-4"
+        data-tour="use-cases"
+      >
+        <h2 className="font-serif text-2xl font-semibold md:text-3xl">
+          Use Cases
+        </h2>
+        <div className="grid gap-6 md:grid-cols-2">
+          {useCaseDemos.map((demo) => (
+            <motion.div
+              key={demo.href}
+              variants={itemVariants}
+              className={demo.size === "wide" ? "md:col-span-2" : ""}
+            >
+              <FeaturedCard demo={demo} isUnlocked={isUnlocked} />
+            </motion.div>
+          ))}
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          {newUseCases.map((demo) => (
+            <motion.div key={demo.href} variants={itemVariants}>
+              <BuildingBlockCard demo={demo} isUnlocked={isUnlocked} />
+            </motion.div>
+          ))}
+        </div>
+        <ComingSoonSection
+          title="More Use Cases Coming"
+          items={comingSoonUseCases}
+        />
+      </motion.div>
+
+      {/* Software Modules */}
+      <motion.div variants={itemVariants} className="space-y-4">
+        <h2 className="font-serif text-2xl font-semibold md:text-3xl">
+          Software Modules
+        </h2>
+        <div className="grid gap-6 md:grid-cols-2">
+          {moduleDemos.map((demo) => (
+            <motion.div
+              key={demo.href}
+              variants={itemVariants}
+              className={
+                moduleDemos.length === 1
+                  ? "md:col-span-2"
+                  : demo.size === "wide"
+                    ? "md:col-span-2"
+                    : ""
+              }
+            >
+              <FeaturedCard demo={demo} isUnlocked={isUnlocked} />
+            </motion.div>
+          ))}
+        </div>
+        {comingSoonModules.length > 0 && (
+          <ComingSoonSection
+            title="More Modules Coming"
+            items={comingSoonModules}
+          />
+        )}
+      </motion.div>
+
+      {/* Software Components */}
+      <motion.div
+        variants={itemVariants}
+        className="space-y-4"
+        data-tour="components"
+      >
+        <h2 className="font-serif text-2xl font-semibold md:text-3xl">
+          Software Components
+        </h2>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {buildingBlocks.map((demo) => (
+            <motion.div key={demo.title} variants={itemVariants}>
+              <BuildingBlockCard demo={demo} isUnlocked={isUnlocked} />
+            </motion.div>
+          ))}
+        </div>
+      </motion.div>
+
+      {/* No-code Assets */}
+      <NoCodeAssetsSection />
+    </motion.section>
+  );
+}
+
+export function DemoCards({ isUnlocked }: DemoCardsProps) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    // Server render and first client render: show content immediately visible.
+    // DemoCardsContent uses motion with initial="hidden" (opacity:0), which causes
+    // a blank page on hard reload with React 19 + Framer Motion v12 (SSR mismatch).
+    return (
+      <section id="demos" className="space-y-8">
+        {!isUnlocked && (
+          <div className="bg-muted/50 border-primary/20 flex items-center gap-3 rounded-lg border p-4">
+            <Lock className="text-primary h-5 w-5 shrink-0" />
+            <p className="text-muted-foreground text-sm">
+              <Link href="/sign-in" className="text-primary hover:underline">
+                Sign in
+              </Link>{" "}
+              to access the interactive demos. Don&apos;t have an account?{" "}
+              <Link href="/sign-up" className="text-primary hover:underline">
+                Sign up
+              </Link>
+              .
+            </p>
+          </div>
+        )}
+        <div className="space-y-4" data-tour="use-cases">
+          <h2 className="font-serif text-2xl font-semibold md:text-3xl">Use Cases</h2>
+          <div className="grid gap-6 md:grid-cols-2">
+            {useCaseDemos.map((demo) => (
+              <div key={demo.href} className={demo.size === "wide" ? "md:col-span-2" : ""}>
+                <FeaturedCard demo={demo} isUnlocked={isUnlocked} />
+              </div>
+            ))}
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {newUseCases.map((demo) => (
+              <div key={demo.href}>
+                <BuildingBlockCard demo={demo} isUnlocked={isUnlocked} />
+              </div>
+            ))}
+          </div>
+          <ComingSoonSection title="More Use Cases Coming" items={comingSoonUseCases} />
+        </div>
+        <div className="space-y-4">
+          <h2 className="font-serif text-2xl font-semibold md:text-3xl">Software Modules</h2>
+          <div className="grid gap-6 md:grid-cols-2">
+            {moduleDemos.map((demo) => (
+              <div
+                key={demo.href}
+                className={
+                  moduleDemos.length === 1 ? "md:col-span-2" : demo.size === "wide" ? "md:col-span-2" : ""
+                }
+              >
+                <FeaturedCard demo={demo} isUnlocked={isUnlocked} />
+              </div>
+            ))}
+          </div>
+          {comingSoonModules.length > 0 && (
+            <ComingSoonSection title="More Modules Coming" items={comingSoonModules} />
+          )}
+        </div>
+        <div className="space-y-4" data-tour="components">
+          <h2 className="font-serif text-2xl font-semibold md:text-3xl">Software Components</h2>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {buildingBlocks.map((demo) => (
+              <div key={demo.title}>
+                <BuildingBlockCard demo={demo} isUnlocked={isUnlocked} />
+              </div>
+            ))}
+          </div>
+        </div>
+        <NoCodeAssetsSection />
+      </section>
+    );
+  }
+
+  return <DemoCardsContent isUnlocked={isUnlocked} />;
+}

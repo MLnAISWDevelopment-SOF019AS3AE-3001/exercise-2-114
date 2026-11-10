@@ -1,0 +1,231 @@
+"use client";
+
+import { useCallback, useState } from "react";
+import { motion, AnimatePresence } from "motion/react";
+import { Upload, File, X, CheckCircle } from "lucide-react";
+import { cn, formatFileSize } from "@/lib/utils";
+
+const SAME_FORMAT: Record<string, string> = { JPEG: "JPG", TIF: "TIFF" };
+
+/** ".pdf,.jpg,.jpeg" -> "PDF, JPG" for people rather than for the file picker. */
+function formatAccept(accept: string): string {
+  const names = accept
+    .split(",")
+    .map((type) => type.trim().replace(/^\./, "").toUpperCase())
+    .filter(Boolean)
+    .map((name) => SAME_FORMAT[name] ?? name);
+  return [...new Set(names)].join(", ");
+}
+
+interface FileUploadProps {
+  accept?: string;
+  maxSize?: number; // in MB
+  file?: File | null; // Controlled file state
+  onFileSelect: (file: File) => void;
+  onFileRemove?: () => void;
+  disabled?: boolean;
+  className?: string;
+}
+
+export function FileUpload({
+  accept = ".pdf,.docx",
+  maxSize = 10,
+  file: controlledFile,
+  onFileSelect,
+  onFileRemove,
+  disabled = false,
+  className,
+}: FileUploadProps) {
+  const [isDragging, setIsDragging] = useState(false);
+  const [internalFile, setInternalFile] = useState<File | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  // Use controlled file if provided, otherwise use internal state
+  const selectedFile =
+    controlledFile !== undefined ? controlledFile : internalFile;
+
+  const validateFile = useCallback(
+    (file: File): boolean => {
+      // Check file type
+      const acceptedTypes = accept
+        .split(",")
+        .map((t) => t.trim().toLowerCase());
+      const fileExt = `.${file.name.split(".").pop()?.toLowerCase()}`;
+      const isValidType = acceptedTypes.some(
+        (type) => type === fileExt || file.type.includes(type.replace(".", "")),
+      );
+
+      if (!isValidType) {
+        setError(`Unsupported file type. Use ${formatAccept(accept)}.`);
+        return false;
+      }
+
+      // Check file size
+      if (file.size > maxSize * 1024 * 1024) {
+        setError(`File too large. Max size: ${maxSize}MB`);
+        return false;
+      }
+
+      setError(null);
+      return true;
+    },
+    [accept, maxSize],
+  );
+
+  const handleFile = useCallback(
+    (file: File) => {
+      if (validateFile(file)) {
+        setInternalFile(file);
+        onFileSelect(file);
+      }
+    },
+    [validateFile, onFileSelect],
+  );
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDragging(false);
+
+      if (disabled) return;
+
+      const file = e.dataTransfer.files[0];
+      if (file) {
+        handleFile(file);
+      }
+    },
+    [disabled, handleFile],
+  );
+
+  const handleDragOver = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      if (!disabled) {
+        setIsDragging(true);
+      }
+    },
+    [disabled],
+  );
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  }, []);
+
+  const handleInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) {
+        handleFile(file);
+      }
+    },
+    [handleFile],
+  );
+
+  const removeFile = useCallback(() => {
+    setInternalFile(null);
+    setError(null);
+    onFileRemove?.();
+  }, [onFileRemove]);
+
+  return (
+    <div className={cn("w-full", className)}>
+      <AnimatePresence mode="wait">
+        {selectedFile ? (
+          <motion.div
+            key="selected"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="border-success/30 bg-success/10 flex items-center gap-3 rounded-lg border px-4 py-3"
+          >
+            <CheckCircle className="text-success h-5 w-5" />
+            <File className="text-muted-foreground h-5 w-5" />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium">
+                {selectedFile.name}
+              </p>
+              <p className="text-muted-foreground text-xs">
+                {formatFileSize(selectedFile.size)}
+              </p>
+            </div>
+            <button
+              onClick={removeFile}
+              disabled={disabled}
+              className="hover:bg-success/20 rounded-full p-1 transition-colors"
+              aria-label="Remove file"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="upload"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <label
+              onDrop={handleDrop}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              className={cn(
+                "flex min-h-[176px] cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-8 transition-all",
+                isDragging
+                  ? "border-primary bg-primary/5 scale-[1.02]"
+                  : "border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/50",
+                disabled && "cursor-not-allowed opacity-50",
+                error && "border-destructive",
+              )}
+            >
+              <motion.div
+                animate={
+                  isDragging ? { scale: 1.1, y: -5 } : { scale: 1, y: 0 }
+                }
+                transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              >
+                <Upload
+                  className={cn(
+                    "h-10 w-10",
+                    isDragging ? "text-primary" : "text-muted-foreground",
+                  )}
+                />
+              </motion.div>
+              <div className="text-center">
+                <p className="font-medium">
+                  {isDragging
+                    ? "Drop file here"
+                    : "Drag & drop or click to upload"}
+                </p>
+                <p className="text-muted-foreground mt-1 text-sm">
+                  {formatAccept(accept)} · up to {maxSize} MB
+                </p>
+              </div>
+              <input
+                type="file"
+                accept={accept}
+                onChange={handleInputChange}
+                disabled={disabled}
+                className="sr-only"
+              />
+            </label>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {error && (
+          <motion.p
+            role="alert"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="text-destructive mt-2 text-sm"
+          >
+            {error}
+          </motion.p>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}

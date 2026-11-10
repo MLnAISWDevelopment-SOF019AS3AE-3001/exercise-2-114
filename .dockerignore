@@ -1,0 +1,63 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+.venv/
+
+# Build output
+.next/
+out/
+build/
+dist/
+tsconfig.tsbuildinfo
+
+# Python
+api/.venv/
+api/__pycache__/
+api/**/__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Environment files (secrets)
+.env
+.env.local
+!.env.production
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+CLAUDE.md
+
+# Git
+.git/
+.gitignore
+
+# Docker
+Dockerfile*
+docker-compose*
+.dockerignore
+
+# Documentation
+*.md
+LICENSE
+docs/
+
+# Testing
+coverage/
+.nyc_output/
+
+# Large media files
+public/video/
+
+# OpenShift configs (not needed in image)
+openshift/
+
+# Workspace/temp
+transcriber_workspace/
+
+# Misc
+.DS_Store
+Thumbs.db
+*.log

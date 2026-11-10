@@ -1,0 +1,16 @@
+[project]
+name = "course-rag-webapp"
+version = "0.1.0"
+description = "GAIK RAG Builder for course GenAI exercises"
+requires-python = ">=3.11"
+
+dependencies = [
+    "fastapi>=0.128.0",
+    "uvicorn[standard]>=0.40.0",
+    "python-multipart>=0.0.21",
+    "python-dotenv>=1.2.1",
+    "gaik[rag-workflow]>=0.8.0",
+]
+
+[tool.uv.sources]
+gaik = { path = "../..", editable = true }
